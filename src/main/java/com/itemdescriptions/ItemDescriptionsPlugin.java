@@ -29,7 +29,6 @@ import okhttp3.Response;
 
 import javax.inject.Inject;
 import java.io.IOException;
-import java.text.NumberFormat;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -383,7 +382,7 @@ public class ItemDescriptionsPlugin extends Plugin {
                     .append("<col=")
                     .append(COLOR_MUTED)
                     .append(">(")
-                    .append(formatNumber(unitPrice))
+                    .append(formatCompactNumber(unitPrice))
                     .append(" ea)</col>");
         }
     }
@@ -674,11 +673,38 @@ public class ItemDescriptionsPlugin extends Plugin {
     }
 
     private String formatGp(long value) {
-        return formatNumber(value) + " gp";
+        return formatCompactNumber(value) + " gp";
     }
 
-    private String formatNumber(long value) {
-        return NumberFormat.getIntegerInstance(Locale.US).format(value);
+    private String formatCompactNumber(long value) {
+        if(value >= 1_000_000_000L) {
+            return formatCompactValue(value / 1_000_000_000.0) + "B";
+        }
+
+        if(value >= 1_000_000L) {
+            return formatCompactValue(value / 1_000_000.0) + "M";
+        }
+
+        if(value >= 1_000L) {
+            return formatCompactValue(value / 1_000.0) + "K";
+        }
+
+        return Long.toString(value);
+    }
+
+    private String formatCompactValue(double value) {
+        if(value >= 100) {
+            return String.format(Locale.US, "%.0f", value);
+        }
+
+        if(value >= 10) {
+            return String.format(Locale.US, "%.1f", value)
+                    .replaceAll("\\.0$", "");
+        }
+
+        return String.format(Locale.US, "%.2f", value)
+                .replaceAll("0+$", "")
+                .replaceAll("\\.$", "");
     }
 
     private String formatWeight(double weight) {
