@@ -213,11 +213,23 @@ public interface ItemDescriptionsConfig extends Config {
     }
 
     @ConfigItem(
+            keyName = "tooltipDelay",
+            name = "Tooltip delay",
+            description = "Delay in milliseconds before the item tooltip is displayed.",
+            section = DISPLAY_SECTION,
+            position = 4
+    )
+    @Range(min = 0, max = 2000)
+    default int tooltipDelay() {
+        return 250;
+    }
+
+    @ConfigItem(
             keyName = "showOnlyWithHotkey",
             name = "Show only with hotkey",
             description = "Only display item information while the configured hotkey is held.",
             section = DISPLAY_SECTION,
-            position = 4
+            position = 5
     )
     default boolean showOnlyWithHotkey() {
         return false;
@@ -228,7 +240,7 @@ public interface ItemDescriptionsConfig extends Config {
             name = "Show hotkey",
             description = "Hold this key to display item information when Show only with hotkey is enabled.",
             section = DISPLAY_SECTION,
-            position = 5
+            position = 6
     )
     default Keybind showHotkey() {
         return Keybind.NOT_SET;

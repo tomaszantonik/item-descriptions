@@ -82,6 +82,7 @@ public class ItemDescriptionsPlugin extends Plugin {
     private boolean readMoreHotkeyPressed;
 
     private int hoveredItemId = -1;
+    private long hoveredSince;
 
     private final HotkeyListener showHotkeyListener = new HotkeyListener(() -> config.showHotkey()) {
         @Override
@@ -123,6 +124,7 @@ public class ItemDescriptionsPlugin extends Plugin {
         readMoreExpanded = false;
         readMoreHotkeyPressed = false;
         hoveredItemId = -1;
+        hoveredSince = 0;
 
         descriptions.clear();
         loading.clear();
@@ -163,6 +165,11 @@ public class ItemDescriptionsPlugin extends Plugin {
         if(hoveredItemId != itemId) {
             readMoreExpanded = readMoreHotkeyPressed;
             hoveredItemId = itemId;
+            hoveredSince = System.currentTimeMillis();
+        }
+
+        if(System.currentTimeMillis() - hoveredSince < config.tooltipDelay()) {
+            return;
         }
 
         if(config.showOnlyWithHotkey() && !showHotkeyPressed) {
@@ -177,6 +184,7 @@ public class ItemDescriptionsPlugin extends Plugin {
 
             if(description == null) {
                 loadDescription(itemId);
+                return;
             }
         }
 
@@ -733,6 +741,7 @@ public class ItemDescriptionsPlugin extends Plugin {
 
     private void resetHoveredItem() {
         hoveredItemId = -1;
+        hoveredSince = 0;
 
         if(!readMoreHotkeyPressed) {
             readMoreExpanded = false;
