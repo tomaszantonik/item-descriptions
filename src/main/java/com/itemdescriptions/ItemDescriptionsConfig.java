@@ -221,7 +221,7 @@ public interface ItemDescriptionsConfig extends Config {
     )
     @Range(min = 0, max = 2000)
     default int tooltipDelay() {
-        return 250;
+        return 150;
     }
 
     @ConfigItem(
