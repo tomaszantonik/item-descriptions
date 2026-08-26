@@ -3,7 +3,6 @@ import requests
 import time
 from pathlib import Path
 
-MAPPING_URL = "https://prices.runescape.wiki/api/v1/osrs/mapping"
 WIKI_API_URL = "https://oldschool.runescape.wiki/api.php"
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -13,34 +12,9 @@ HEADERS = {
     "User-Agent": "RuneLite Item Descriptions - data updater"
 }
 
-BATCH_SIZE = 50
+ITEM_BATCH_SIZE = 5000
+EXTRACT_BATCH_SIZE = 50
 REQUEST_DELAY = 0.2
-
-
-def load_existing_descriptions():
-    if not OUTPUT_FILE.exists():
-        return {}
-
-    with OUTPUT_FILE.open("r", encoding="utf-8") as file:
-        data = json.load(file)
-
-    return {
-        str(item_id): description
-        for item_id, description in data.items()
-        if isinstance(description, str) and description.strip()
-    }
-
-
-def fetch_items():
-    response = requests.get(
-        MAPPING_URL,
-        headers=HEADERS,
-        timeout=30
-    )
-
-    response.raise_for_status()
-
-    return response.json()
 
 
 def clean_description(text):
@@ -62,23 +36,87 @@ def clean_description(text):
     return cleaned if cleaned else None
 
 
-def resolve_title(title, title_map):
-    visited = set()
+def fetch_wiki_items():
+    items = []
+    offset = 0
 
-    while title in title_map and title not in visited:
-        visited.add(title)
-        title = title_map[title]
+    while True:
+        query = (
+            "bucket('infobox_item')"
+            ".select('page_name','page_name_sub','item_id','item_name')"
+            ".orderBy('page_name','asc')"
+            f".limit({ITEM_BATCH_SIZE})"
+            f".offset({offset})"
+            ".run()"
+        )
 
-    return title
+        response = requests.get(
+            WIKI_API_URL,
+            params={
+                "action": "bucket",
+                "format": "json",
+                "formatversion": 2,
+                "query": query
+            },
+            headers=HEADERS,
+            timeout=60
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+        batch = data.get("bucket", [])
+
+        if not batch:
+            break
+
+        for entry in batch:
+            item_id = entry.get("item_id")
+            item_name = entry.get("item_name")
+            page_name = entry.get("page_name")
+
+            if item_id is None or not item_name or not page_name:
+                continue
+
+            if isinstance(item_id, list):
+                item_ids = item_id
+            else:
+                item_ids = [item_id]
+
+            for raw_item_id in item_ids:
+                try:
+                    parsed_item_id = int(raw_item_id)
+                except (TypeError, ValueError):
+                    continue
+
+                items.append({
+                    "id": parsed_item_id,
+                    "name": item_name,
+                    "page": page_name
+                })
+
+        print(f"Item rows fetched: {len(items)}")
+
+        if len(batch) < ITEM_BATCH_SIZE:
+            break
+
+        offset += ITEM_BATCH_SIZE
+        time.sleep(REQUEST_DELAY)
+
+    items_by_id = {}
+
+    for item in items:
+        items_by_id[item["id"]] = item
+
+    return items_by_id
 
 
-def fetch_wiki_descriptions(names):
-    descriptions_by_name = {}
+def fetch_extracts(page_names):
+    page_names = sorted(set(page_names))
+    descriptions_by_page = {}
 
-    names = sorted(set(names))
-
-    for offset in range(0, len(names), BATCH_SIZE):
-        batch = names[offset:offset + BATCH_SIZE]
+    for offset in range(0, len(page_names), EXTRACT_BATCH_SIZE):
+        batch = page_names[offset:offset + EXTRACT_BATCH_SIZE]
 
         response = requests.get(
             WIKI_API_URL,
@@ -89,10 +127,11 @@ def fetch_wiki_descriptions(names):
                 "explaintext": 1,
                 "redirects": 1,
                 "format": "json",
+                "formatversion": 2,
                 "titles": "|".join(batch)
             },
             headers=HEADERS,
-            timeout=30
+            timeout=60
         )
 
         response.raise_for_status()
@@ -100,9 +139,9 @@ def fetch_wiki_descriptions(names):
         data = response.json()
         query = data.get("query", {})
 
-        pages = query.get("pages", {})
         normalized = query.get("normalized", [])
         redirects = query.get("redirects", [])
+        pages = query.get("pages", [])
 
         title_map = {}
 
@@ -122,115 +161,66 @@ def fetch_wiki_descriptions(names):
 
         pages_by_title = {}
 
-        for page in pages.values():
+        for page in pages:
             title = page.get("title")
-
-            if not title:
-                continue
-
             extract = clean_description(page.get("extract"))
 
-            if extract:
+            if title and extract:
                 pages_by_title[title] = extract
 
-        pages_by_title_lower = {
-            title.lower(): description
-            for title, description in pages_by_title.items()
-        }
+        for original_page in batch:
+            resolved_page = original_page
+            visited = set()
 
-        for original_name in batch:
-            resolved_name = resolve_title(original_name, title_map)
+            while resolved_page in title_map and resolved_page not in visited:
+                visited.add(resolved_page)
+                resolved_page = title_map[resolved_page]
 
-            description = pages_by_title.get(resolved_name)
+            description = pages_by_title.get(resolved_page)
 
-            if description is None:
-                description = pages_by_title_lower.get(resolved_name.lower())
+            if description:
+                descriptions_by_page[original_page] = description
 
-            if description is not None:
-                descriptions_by_name[original_name] = description
+        done = min(offset + EXTRACT_BATCH_SIZE, len(page_names))
 
-        done = min(offset + BATCH_SIZE, len(names))
-
-        print(f"Wiki: {done}/{len(names)}")
+        print(f"Descriptions fetched: {done}/{len(page_names)}")
 
         time.sleep(REQUEST_DELAY)
 
-    return descriptions_by_name
+    return descriptions_by_page
 
 
 def main():
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    existing = load_existing_descriptions()
-    items = fetch_items()
+    print("Fetching item list from OSRS Wiki...")
 
-    items_by_id = {}
+    items = fetch_wiki_items()
 
-    for item in items:
-        item_id = item.get("id")
-        name = item.get("name")
+    print()
+    print(f"Unique item IDs: {len(items)}")
 
-        if item_id is None or not name:
-            continue
-
-        items_by_id[str(item_id)] = item
-
-    print(f"Items: {len(items_by_id)}")
-    print(f"Existing descriptions: {len(existing)}")
-
-    descriptions = {}
-
-    for item_id, description in existing.items():
-        if item_id in items_by_id:
-            descriptions[item_id] = description
-
-    missing_items = [
-        item
-        for item_id, item in items_by_id.items()
-        if item_id not in descriptions
-    ]
-
-    missing_names = {
-        item["name"]
-        for item in missing_items
-        if item.get("name")
+    page_names = {
+        item["page"]
+        for item in items.values()
     }
 
-    print(f"Missing item IDs: {len(missing_items)}")
-    print(f"Unique names to query: {len(missing_names)}")
+    print(f"Unique Wiki pages: {len(page_names)}")
+    print()
+    print("Fetching Wiki descriptions...")
 
-    wiki_descriptions = {}
+    descriptions_by_page = fetch_extracts(page_names)
 
-    if missing_names:
-        wiki_descriptions = fetch_wiki_descriptions(missing_names)
+    descriptions = {}
+    missing = []
 
-    wiki_count = 0
-    examine_count = 0
-    no_description = []
+    for item_id, item in items.items():
+        description = descriptions_by_page.get(item["page"])
 
-    for item_id, item in items_by_id.items():
-        if item_id in descriptions:
-            continue
-
-        name = item.get("name")
-        examine = clean_description(item.get("examine"))
-
-        wiki_description = wiki_descriptions.get(name)
-
-        if wiki_description:
-            descriptions[item_id] = wiki_description
-            wiki_count += 1
-            continue
-
-        if examine:
-            descriptions[item_id] = examine
-            examine_count += 1
-            continue
-
-        no_description.append({
-            "id": item_id,
-            "name": name
-        })
+        if description:
+            descriptions[str(item_id)] = description
+        else:
+            missing.append(item)
 
     descriptions = dict(
         sorted(
@@ -250,22 +240,28 @@ def main():
         file.write("\n")
 
     print()
-    print(f"Existing kept: {len(existing)}")
-    print(f"Wiki descriptions added: {wiki_count}")
-    print(f"Examine fallbacks added: {examine_count}")
-    print(f"Descriptions saved: {len(descriptions)}")
-    print(f"Missing: {len(no_description)}")
-    print(f"Output: {OUTPUT_FILE}")
+    print("=" * 60)
+    print("GENERATION SUMMARY")
+    print("=" * 60)
+    print(f"Item IDs:      {len(items)}")
+    print(f"Descriptions:  {len(descriptions)}")
+    print(f"Missing:       {len(missing)}")
+    print(f"Coverage:      {len(descriptions) / len(items) * 100:.2f}%")
+    print(f"Output:        {OUTPUT_FILE}")
+    print("=" * 60)
 
-    if no_description:
+    if missing:
         print()
-        print("Items without any description:")
+        print("Items without Wiki description:")
 
-        for item in no_description[:50]:
-            print(f'{item["id"]}: {item["name"]}')
+        for item in missing[:100]:
+            print(
+                f'{item["id"]}: {item["name"]} '
+                f'[{item["page"]}]'
+            )
 
-        if len(no_description) > 50:
-            print(f"... and {len(no_description) - 50} more")
+        if len(missing) > 100:
+            print(f"... and {len(missing) - 100} more")
 
 
 if __name__ == "__main__":
