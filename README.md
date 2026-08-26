@@ -21,15 +21,6 @@ items.
 - Optionally compares equipment stats with currently equipped gear
 - Stack prices include total value and unit price
 
-## Default settings
-
-- Visible lines: `3`
-- Always show full description: `Off`
-- Hide in bank: `Off`
-- Show only with hotkey: `Off`
-- Show description hotkey: `Not set`
-- Read more hotkey: `Shift`
-
 Descriptions are provided by the Old School RuneScape Wiki.
 
 ## Screenshots
