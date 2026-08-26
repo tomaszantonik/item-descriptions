@@ -22,7 +22,6 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import net.runelite.client.util.HotkeyListener;
-import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -41,7 +40,8 @@ import java.util.concurrent.ScheduledExecutorService;
 )
 public class ItemDescriptionsPlugin extends Plugin {
     private static final int MAX_LINE_LENGTH = 55;
-    private static final long RETRY_DELAY_MS = 60_000L;
+
+    private static final String DESCRIPTIONS_URL = "https://raw.githubusercontent.com/tomaszantonik/item-descriptions/master/data/item-descriptions.json";
 
     private static final String COLOR_TITLE = "ff981f";
     private static final String COLOR_TEXT = "cccccc";
@@ -73,8 +73,6 @@ public class ItemDescriptionsPlugin extends Plugin {
     private ItemDescriptionsConfig config;
 
     private final Map<Integer, String> descriptions = new ConcurrentHashMap<>();
-    private final Map<Integer, Boolean> loading = new ConcurrentHashMap<>();
-    private final Map<Integer, Long> retryAfter = new ConcurrentHashMap<>();
 
     private boolean showHotkeyPressed;
     private boolean readMoreExpanded;
@@ -112,6 +110,8 @@ public class ItemDescriptionsPlugin extends Plugin {
     protected void startUp() {
         keyManager.registerKeyListener(showHotkeyListener);
         keyManager.registerKeyListener(readMoreHotkeyListener);
+
+        loadDescriptions();
     }
 
     @Override
@@ -126,8 +126,6 @@ public class ItemDescriptionsPlugin extends Plugin {
         hoveredSince = 0;
 
         descriptions.clear();
-        loading.clear();
-        retryAfter.clear();
     }
 
     @Subscribe
@@ -180,17 +178,40 @@ public class ItemDescriptionsPlugin extends Plugin {
 
         if(config.showDescription()) {
             description = descriptions.get(itemId);
-
-            if(description == null) {
-                loadDescription(itemId);
-                return;
-            }
         }
 
         String itemAction = getItemAction(entry);
         String tooltip = buildTooltip(itemId, quantity, item, description, itemAction);
 
         tooltipManager.add(new Tooltip(tooltip));
+    }
+
+    private void loadDescriptions() {
+        executorService.submit(() -> {
+            Request request = new Request.Builder()
+                    .url(DESCRIPTIONS_URL)
+                    .header("User-Agent", "RuneLite Item Descriptions/1.0.0")
+                    .build();
+
+            try (Response response = okHttpClient.newCall(request).execute()) {
+                if(!response.isSuccessful() || response.body() == null) {
+                    return;
+                }
+
+                JsonObject root = new JsonParser()
+                        .parse(response.body().string())
+                        .getAsJsonObject();
+
+                for(Map.Entry<String, JsonElement> entry : root.entrySet()) {
+                    try {
+                        int itemId = Integer.parseInt(entry.getKey());
+                        descriptions.put(itemId, entry.getValue().getAsString());
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            } catch (IOException ignored) {
+            }
+        });
     }
 
     private boolean isLocationEnabled(MenuEntry entry) {
@@ -772,114 +793,6 @@ public class ItemDescriptionsPlugin extends Plugin {
         if(!readMoreHotkeyPressed) {
             readMoreExpanded = false;
         }
-    }
-
-    private void loadDescription(int itemId) {
-        Long retryTimestamp = retryAfter.get(itemId);
-
-        if(retryTimestamp != null && retryTimestamp > System.currentTimeMillis()) {
-            return;
-        }
-
-        if(loading.putIfAbsent(itemId, true) != null) {
-            return;
-        }
-
-        ItemComposition item = itemManager.getItemComposition(itemId);
-        String itemName = item.getName();
-
-        executorService.submit(() -> {
-            try {
-                String description = fetchWikiDescription(itemName);
-
-                if(description != null && !description.isEmpty()) {
-                    descriptions.put(itemId, description);
-                    retryAfter.remove(itemId);
-                } else {
-                    retryAfter.put(itemId, System.currentTimeMillis() + RETRY_DELAY_MS);
-                }
-            } finally {
-                loading.remove(itemId);
-            }
-        });
-    }
-
-    private String fetchWikiDescription(String itemName) {
-        HttpUrl base = HttpUrl.parse("https://oldschool.runescape.wiki/api.php");
-
-        if(base == null) {
-            return null;
-        }
-
-        HttpUrl url = base.newBuilder()
-                .addQueryParameter("action", "query")
-                .addQueryParameter("prop", "extracts")
-                .addQueryParameter("exintro", "1")
-                .addQueryParameter("explaintext", "1")
-                .addQueryParameter("redirects", "1")
-                .addQueryParameter("format", "json")
-                .addQueryParameter("titles", itemName)
-                .build();
-
-        Request request = new Request.Builder()
-                .url(url)
-                .header("User-Agent", "RuneLite Item Descriptions/1.0.0")
-                .build();
-
-        try (Response response = okHttpClient.newCall(request).execute()) {
-            if(!response.isSuccessful() || response.body() == null) {
-                return null;
-            }
-
-            JsonObject root = new JsonParser()
-                    .parse(response.body().string())
-                    .getAsJsonObject();
-
-            if(!root.has("query")) {
-                return null;
-            }
-
-            JsonObject pages = root
-                    .getAsJsonObject("query")
-                    .getAsJsonObject("pages");
-
-            if(pages == null) {
-                return null;
-            }
-
-            for(Map.Entry<String, JsonElement> pageEntry : pages.entrySet()) {
-                JsonObject page = pageEntry
-                        .getValue()
-                        .getAsJsonObject();
-
-                if(!page.has("extract")) {
-                    continue;
-                }
-
-                String extract = page
-                        .get("extract")
-                        .getAsString();
-
-                if(extract == null || extract.trim().isEmpty()) {
-                    continue;
-                }
-
-                return cleanDescription(extract);
-            }
-        } catch (IOException ignored) {
-        }
-
-        return null;
-    }
-
-    private String cleanDescription(String text) {
-        return text
-                .replace("\r\n", "\n")
-                .replace('\r', '\n')
-                .replaceAll("[ \\t]+", " ")
-                .replaceAll(" *\\n *", "\n")
-                .replaceAll("\\n{3,}", "\n\n")
-                .trim();
     }
 
     private String getCompactDescription(String text) {
