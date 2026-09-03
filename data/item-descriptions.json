@@ -16967,5 +16967,17 @@
   "34379": "Small port coin bag",
   "34381": "Medium port coin bag",
   "34383": "Large port coin bag",
-  "34385": "Huge port coin bag"
+  "34385": "Huge port coin bag",
+  "34388": "Big red button",
+  "34390": "Lanscape coins can be earned in LANScape. They can be spent at Gary Gilbert's shop to purchase items for the finale.",
+  "34401": "The necklace of fangs is a piece of combat jewellery that gives combat bonuses to Ranged. It is dropped from turoths and spiked turoths.",
+  "34404": "The air diamond is an elemental gem obtained by killing killerwatts. It is used in the creation of the amulet of air, the air diamond must be used on the Air Runecrafting Altar along with an amulet of magic and 100 air runes.",
+  "34407": "The amulet of air is an amulet that has the same base stats as an amulet of magic, with the added bonus of a +2 max hit to air spells.\n\nTo create an amulet of air, the air diamond must be used on the Air Altar along with an amulet of magic and 100 air runes.\n\nIt can be combined into an elemental amulet, which adds a +2 max hit to spells of all four elements.",
+  "34410": "The water sapphire is an elemental gem obtained by killing sea snake young and hatchlings. It is used in the creation of the amulet of water, the water sapphire must be used on the Water Runecrafting Altar along with an amulet of magic and 100 water runes.",
+  "34413": "The amulet of water is an amulet that has the same base stats as an amulet of magic, with the added bonus of a +2 max hit to water spells.\n\nTo create an amulet of water, the water sapphire must be used on the Water Altar along with an amulet of magic and 100 water runes.\n\nIt can be combined into an elemental amulet, which adds a +2 max hit to spells of all four elements.",
+  "34416": "The earth emerald is an elemental gem obtained by killing molanisks. It is used in the creation of the amulet of earth, the earth emerald must be used on the Earth Runecrafting Altar along with an amulet of magic and 100 earth runes.",
+  "34419": "The amulet of earth is an amulet that has the same base stats as an amulet of magic, with the added bonus of a +2 max hit to earth spells.\n\nTo create an amulet of earth, the earth emerald must be used on the Earth Altar along with an amulet of magic and 100 earth runes.\n\nIt can be combined into an elemental amulet, which adds a +2 max hit to spells of all four elements.",
+  "34422": "The fire ruby is an elemental gem obtained by killing infernal mages. It is used in the creation of the amulet of fire, the fire ruby must be used on the Fire Runecrafting Altar along with an amulet of magic and 100 fire runes.",
+  "34425": "The amulet of fire is an amulet that has the same base stats as an amulet of magic, with the added bonus of a +2 max hit to fire spells.\n\nTo create an amulet of fire, the fire ruby must be used on the Fire Altar along with an amulet of magic and 100 fire runes.\n\nIt can be combined into an elemental amulet, which adds a +2 max hit to spells of all four elements.",
+  "34428": "The elemental amulet is a magic amulet that gives a +2 max hit to all elemental spells. It is created by using any of the four elemental amulets on an elemental runecrafting altar, while having all four amulets and 500 air, water, earth, and fire runes in your inventory. The amulet has the same base stats as an amulet of magic.\n\nThe +2 max hit is added before magic damage and elemental weakness modifiers are applied, and therefore scales with both. This bonus stacks additively with the bonus from the chaos gauntlets, for a total of +5 max hits when casting bolt spells. The bonus does work against Salarin the Twisted."
 }
